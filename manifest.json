@@ -1,5 +1,5 @@
 {
-  "name": "ChatGPT Macro",
+  "name": "ChatGPT TTS",
   "version": "1.0",
   "manifest_version": 3,
   "content_scripts": [
@@ -8,8 +8,17 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "matches.js"
+        "macro.js"
+      ],
+      "css": [
+        "tts_player.css"
       ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["tts_player.css", "tts_player.html", "saved_text.html", "api_key.html"],
+      "matches": ["https://chat.openai.com/*"]
     }
   ]
 }
