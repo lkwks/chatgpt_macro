@@ -1,0 +1,32 @@
+.tts_player {
+   position: fixed; 
+   background: white;
+   border: 1px solid black;
+   z-index: 2147483647;
+   font-family: math;
+   height: 22px;
+   display: flex;
+   cursor: default;
+}
+
+.tts_player div {
+    display: flex;
+    justify-content: center;
+}
+
+.tts_player > div > div {
+    width: 18px;
+}
+
+.selected.t_close {
+    display: none;
+}
+
+.tts_player.t_close {
+    display: none;
+}
+
+
+.tts_player > div > .t_close {
+    display: none;
+}
