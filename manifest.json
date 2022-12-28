@@ -8,7 +8,7 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "macro.js"
+        "tts.js"
       ],
       "css": [
         "tts_player.css"
