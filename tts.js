@@ -58,8 +58,7 @@ domobserver 운영 전략
     if (document.querySelector("main h1") || !document.querySelector("main")) return;
     var now_main_length = document.querySelector("main").innerText.length;
     
-    if (this.last_main_length === now_main_length) return;
-    console.log(this.last_main_length, now_main_length);
+    if (this.last_main_length === now_main_length || Math.abs(this.last_main_length - now_main_length) === 6) return;
     this.last_main_length = now_main_length;
     if (this.href !== window.location.href)
     {
@@ -71,7 +70,7 @@ domobserver 운영 전략
       var rect = this.tts_player.now_playing_target.getBoundingClientRect();
       this.tts_player.open(rect.left, rect.top, -24, 2, "object");
       return;
-    }    
+    }
     if (this.tts_player.now_generating !== null) return;
 
 
@@ -274,7 +273,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
   async push_gen_target(target)
   {
     var innerText = target.innerText;    
-    var sentences = innerText.split(/[.!?:;\n]/).map(x=>x.trim());
+    var sentences = innerText.split(/[.!?:;]\s|\n/).map(x=>x.trim());
 
     if (sentences.length > 1)
       await this.push(sentences[0]);
@@ -283,7 +282,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
       await this.push(sentences[i]);
 
     if (this.end_well(innerText))
-      await this.push(sentences[sentences.length-1]);
+      await this.push(sentences[sentences.length-1].replace(/[.!?:;]|\n/, ""));
 
     if (this.audio.paused && this.play_q.length > 0)
       this.play();
