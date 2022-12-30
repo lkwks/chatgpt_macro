@@ -45,12 +45,6 @@ domobserver 운영 전략
 
   async new_answer_observer()
   {
-    if (this.tts_player.audio.paused === false)
-    {
-      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
-      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
-      return;
-    }
     if (this.last_main_length === -1)
     {
       if(document.querySelector("main"))
@@ -72,6 +66,12 @@ domobserver 운영 전략
       this.href = window.location.href;
       return;
     }
+    if (this.tts_player.audio.paused === false)
+    {
+      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
+      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
+      return;
+    }    
     if (this.tts_player.now_generating !== null) return;
 
 
