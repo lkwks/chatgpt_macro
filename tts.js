@@ -3,6 +3,7 @@ class GenerationManager {
   {
    this.target = target;
    this.log = []; 
+   this.ready_q = [];
    this.last_sentence = ["", 0];
   }
 }
@@ -10,9 +11,21 @@ class GenerationManager {
 class DOMObserver {
   constructor(tts_player)
   {
-    setInterval(async ()=>{await this.new_answer_observer();}, 1000);
-    this.last_main_length = document.querySelector("main").innerText.length;
+/*
+
+domobserver 운영 전략
+
+1. 0.5초 주기로 document.querySelector("main") 오브젝트를 새로 얻어와 안에 h1이 사라졌는지 확인한다.
+
+2. h1이 사라진 경우에 한해 observer의 루틴 함수
+(=main 오브젝트 내 텍스트 길이가 증가했는지를 확인하고, 증가했다면 그에 대한 제너레이션 매니저를 실행)를 실행시킨다. 
+
+*/
+    setInterval(async ()=>{await this.new_answer_observer();}, 500);
+    this.last_main_length = -1;
     this.tts_player = tts_player;
+    this.fill_textarea = null;
+    this.href = "";
   }
 
   get_last_node()
@@ -25,25 +38,46 @@ class DOMObserver {
       node = iter.nextNode();
     }
 
-    while (tnode && tnode.nodeName !== "DIV" && tnode.nodeName !== "P" && tnode.nodeName !== "LI" && tnode.nodeName !== "UL") 
-    {
-      if (tnode.nodeName === "CODE" && tnode.parentNode.nodeName === "DIV") 
-        break;
+    while (tnode && tnode.nodeName !== "DIV") 
       tnode = tnode.parentNode;
-    }
     return tnode;
   }
 
   async new_answer_observer()
   {
-    if (document.querySelector("main h1")) return;
+    if (this.tts_player.audio.paused === false)
+    {
+      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
+      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
+      return;
+    }
+    if (this.last_main_length === -1)
+    {
+      if(document.querySelector("main"))
+      { 
+        this.fill_textarea = new TheTextarea();  
+        this.last_main_length = document.querySelector("main").innerText.length;
+        this.href = window.location.href;
+      }
+      else return;
+    }
+    if (document.querySelector("main h1") || !document.querySelector("main")) return;
     var now_main_length = document.querySelector("main").innerText.length;
+    
     if (this.last_main_length === now_main_length) return;
+    console.log(this.last_main_length, now_main_length);
     this.last_main_length = now_main_length;
-    if (this.tts_player.now_generating !== null || this.tts_player.audio.paused === false) return;
+    if (this.href !== window.location.href)
+    {
+      this.href = window.location.href;
+      return;
+    }
+    if (this.tts_player.now_generating !== null) return;
+
 
     var tnode = this.get_last_node();
     this.tts_player.close();
+    this.tts_player.now_playing_target = tnode;
     this.tts_player.okay_to_play = true; //okay to play의 값은 tts를 얻어오기 전에 true로 세팅돼야 함. 
     this.tts_player.now_generating = new GenerationManager(tnode);
     await this.tts_player.push_gen_target(tnode);
@@ -63,8 +97,6 @@ class TTSPlayer {
       .then(r => r.text())
       .then(html => { 
         document.body.insertAdjacentHTML('beforeend', html);
-
-        this.dom_observer = new DOMObserver(this);
 
         this.obj = document.querySelector("div.tts_player");
 
@@ -100,6 +132,7 @@ class TTSPlayer {
     this.selected_str = ""
     this.play_q = [];
     this.langname = this.get_langname();
+    this.now_playing_target = null;
   }
   
   ask_chatgpt(mode)
@@ -189,12 +222,15 @@ class TTSPlayer {
 
   async push(text)
   {
-    if (text === "" && text === undefined) return;
+    if (text === "" || text === undefined || this.is_it_new(text) === false) return;
     if (text in this.dict)
       this.play_q.push(this.dict[text]);
     else
     {
+      if (this.now_generating)
+        this.now_generating.ready_q.push(text);
       var blob_src = await this.get_tts(text);
+      if (text in this.dict || (this.now_generating && this.now_generating.log.includes(this.dict[text])) || this.play_q.includes(this.dict[text])) return;
       this.dict[text] = blob_src;
       this.play_q.push(blob_src);
     }
@@ -222,48 +258,45 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
     return `en-${lang_code}-Wavenet-${name_char[rand_num]}`;
   }
 
-
   end_well(text)
   {
-    return `.!?`.split("").some((c)=>text.endsWith(c));
+    return `.!?\n`.split("").some((c)=>text.endsWith(c));
   }
 
   is_it_new(text)
   {
-    if (text === "" || text === undefined) return false;
+    if (text === "" || text === undefined || (this.now_generating && this.now_generating.ready_q.includes(text))) return false;
     if (!(text in this.dict)) return true;
     if ((this.now_generating && this.now_generating.log.includes(this.dict[text])) || this.play_q.includes(this.dict[text])) return false;
-    console.log(text);
     return true;
   }
 
   async push_gen_target(target)
   {
-    var sentences = target.innerText.split(/[.!?:;]/);    
+    var innerText = target.innerText;    
+    var sentences = innerText.split(/[.!?:;\n]/).map(x=>x.trim());
 
-    if (sentences.length > 1 && this.is_it_new(sentences[0].trim()))
-      this.push(sentences[0].trim());
+    if (sentences.length > 1)
+      await this.push(sentences[0]);
 
     for (var i=1; i < sentences.length-1; i++)
-      if (this.is_it_new(sentences[i].trim()))
-        this.push(sentences[i].trim());
+      await this.push(sentences[i]);
 
-    if (this.end_well(target.innerText) && this.is_it_new(sentences[sentences.length-1].trim()))
-      this.push(sentences[sentences.length-1].trim());
+    if (this.end_well(innerText))
+      await this.push(sentences[sentences.length-1]);
 
     if (this.audio.paused && this.play_q.length > 0)
       this.play();
 
+    if (!this.now_generating) return;
     var now_time = (new Date()).getTime();
     var [ls, lt] = this.now_generating.last_sentence;
-    if (ls === sentences[sentences.length-1].trim() && now_time - lt > 3000)
-    {
+    if (ls === sentences[sentences.length-1] && now_time - lt > 3000)
       this.now_generating = null;
-    }
     else if (this.now_generating && target === this.now_generating.target)
     {
-      if (ls !== sentences[sentences.length-1].trim()) 
-        this.now_generating.last_sentence = [sentences[sentences.length-1].trim(), now_time];
+      if (ls !== sentences[sentences.length-1]) 
+        this.now_generating.last_sentence = [sentences[sentences.length-1], now_time];
       setTimeout(async ()=>{await this.push_gen_target(target);}, 500);
     }
   }
@@ -293,7 +326,7 @@ class TheTextarea {
       .then(html => { 
 
         this.text = html;
-        setTimeout(()=>{this.fill_textarea();}, 700);
+        this.fill_textarea();
 
       });
 
@@ -317,8 +350,8 @@ class TheTextarea {
   }
 }
 
-var fill_textarea = new TheTextarea();
 var tts_player = new TTSPlayer();
+var dom_observer = new DOMObserver(tts_player);
 var timer = false;
 
 document.body.addEventListener("mouseup", async (e)=>{
@@ -351,7 +384,8 @@ document.body.addEventListener("mouseup", async (e)=>{
       if (tnode) //e.target의 부모 중에 div, p, li, ul가 있는 경우
       {
         tts_player.okay_to_play = true; //okay to play의 값은 tts를 얻어오기 전에 true로 세팅돼야 함. 
-        if (tts_player.dom_observer.get_last_node() === tnode)
+        tts_player.now_playing_target = tnode;
+        if (dom_observer.get_last_node() === tnode)
         {
           tts_player.now_generating = new GenerationManager(tnode);
           await tts_player.push_gen_target(tnode);
@@ -381,6 +415,7 @@ document.body.addEventListener("mouseup", async (e)=>{
   if(selection.isCollapsed === false && tts_player.audio.paused) //현재 재생중 아니고 텍스트 블록 선택 있으면 그 부분에 대한 재생창 띄운다. 사실 이것만 있어도 되긴 한데..
   {
     tts_player.close();
+    tts_player.now_playing_target = selection.focusNode;
     tts_player.open(e.clientX, e.clientY, 20, 0, "selected");
     tts_player.selected_str = selection.toString();
     setTimeout(()=>{if(window.getSelection().isCollapsed)tts_player.close();}, 20)
