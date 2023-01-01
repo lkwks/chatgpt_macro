@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <title>ChatGPT TTS Options</title>
+    <link href="options.css" rel="stylesheet">
+  </head>
+  <body>
+    <main>
+        <h1>ChatGPT TTS Options</h1>
+        <div id="api_key">
+            <label>Your Google API Key</label>
+            <item>
+                <div><input type="text" size="30"></div>
+                <div><button>SAVE</button></div>
+            </item>
+        </div>
+        <div id="saved_text">
+            <label>Saved texts</label>
+            <item>
+                <div>
+                    <select size="10">
+                    </select>
+                    <div>
+                        <button class="add_text">Add</button><button class="del_text">Del</button>
+                    </div>
+                    <div class="add_text_name">
+                        <input type="text" size="6"><button class="save_text_name">SAVE</button>
+                    </div>
+                </div>
+                <div>
+                    <textarea rows="11"></textarea>
+                    <div>
+                        <button class="save_textarea">SAVE</button>
+                    </div>
+                    <div>&nbsp;</div>
+                </div>
+            </item>
+        </div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

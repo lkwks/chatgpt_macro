@@ -1,0 +1,72 @@
+main, main * {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+main {
+    width: 100%;
+    flex-direction: column;
+}
+
+main > div, h1 {
+    width: 60%;
+}
+
+main > div {
+    min-height: 150px;
+}
+
+h1 {
+    height: 100px;
+}
+
+main label {
+    width: 30%;
+}
+
+main item {
+    width: 70%;
+}
+
+#api_key item div:first-child{
+    width: 100%;
+    justify-content: left;
+}
+
+#api_key item div:nth-child(2){
+    justify-content: right;
+}
+
+#saved_text item > div {
+    flex-direction: column;
+}
+
+#saved_text item div:first-child {
+    width: 100px;
+ }
+
+#saved_text button {
+    width: 50px;
+}
+
+#saved_text select {
+    width: 100%;
+}
+
+#saved_text item div:nth-child(2) {
+    width: 100%;
+}
+
+#saved_text item div:nth-child(2) textarea {
+    width: 100%;
+}
+
+#saved_text item div:nth-child(2) div {
+    justify-content: right;
+}
+
+
+.hide{
+    visibility: hidden;
+}
