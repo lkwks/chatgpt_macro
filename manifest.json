@@ -17,8 +17,12 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["tts_player.css", "tts_player.html", "saved_text.html", "api_key.html"],
+      "resources": ["tts_player.css", "tts_player.html"],
       "matches": ["https://chat.openai.com/*"]
     }
-  ]
+  ],
+  "permissions": [
+    "storage"
+  ],
+  "options_page": "options.html"
 }
