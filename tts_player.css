@@ -30,3 +30,16 @@
 .tts_player > div > .t_close {
     display: none;
 }
+
+.macro_button {
+    border: 1px solid black;
+    background: lightgray;
+    font-size: 9pt;
+}
+
+.macro_select {
+    font-size: 9pt;
+    width: 100px;
+    height: 25px;
+    padding: 2px;
+}
