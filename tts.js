@@ -24,7 +24,6 @@ domobserver 운영 전략
     setInterval(async ()=>{await this.new_answer_observer();}, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
-    this.fill_textarea = null;
     this.href = "";
   }
 
@@ -49,14 +48,20 @@ domobserver 운영 전략
     {
       if(document.querySelector("main"))
       { 
-        this.fill_textarea = new TheTextarea();  
-        this.last_main_length = document.querySelector("main").innerText.length;
+        this.last_main_length = document.querySelector("main div").innerText.length;
         this.href = window.location.href;
       }
       else return;
     }
     if (document.querySelector("main h1") || !document.querySelector("main")) return;
-    var now_main_length = document.querySelector("main").innerText.length;
+    var now_main_length = document.querySelector("main div").innerText.length;
+    if (this.tts_player.audio.paused === false) // 현재 재생 상태면 push_gen 안돌린다.
+    {
+      this.last_main_length = now_main_length;
+      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
+      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
+      return;
+    }
     
     if (this.last_main_length === now_main_length || Math.abs(this.last_main_length - now_main_length) === 6) return;
     this.last_main_length = now_main_length;
@@ -65,16 +70,10 @@ domobserver 운영 전략
       this.href = window.location.href;
       return;
     }
-    if (this.tts_player.audio.paused === false)
-    {
-      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
-      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
-      return;
-    }
     if (this.tts_player.now_generating !== null) return;
 
-
     var tnode = this.get_last_node();
+
     this.tts_player.close();
     this.tts_player.now_playing_target = tnode;
     this.tts_player.okay_to_play = true; //okay to play의 값은 tts를 얻어오기 전에 true로 세팅돼야 함. 
@@ -83,6 +82,7 @@ domobserver 운영 전략
     var rect = tnode.getBoundingClientRect();
     this.tts_player.open(rect.left, rect.top, -24, 2, "object");
     this.tts_player.play();
+    this.tts_player.scroll_to_bottom();
 
   }
 }
@@ -117,15 +117,13 @@ class TTSPlayer {
 
         this.close();
       });
-    fetch(chrome.runtime.getURL('/api_key.html'))
-      .then(r => r.text())
-      .then(html => { this.api_key = html; }); 
+
+    chrome.storage.sync.get(null, (items) => { this.api_key = items.api_key; });
    
     this.audio = new Audio();
     this.audio.addEventListener("ended", ()=>{this.play();});
 
     this.dict = {};
-
     this.okay_to_play = false;
     this.now_generating = null;
     this.selected_str = ""
@@ -222,13 +220,16 @@ class TTSPlayer {
   async push(text)
   {
     if (text === "" || text === undefined || this.is_it_new(text) === false) return;
+
+    if (text.includes("Question:")) return;
+
     if (text in this.dict)
       this.play_q.push(this.dict[text]);
     else
     {
       if (this.now_generating)
         this.now_generating.ready_q.push(text);
-      var blob_src = await this.get_tts(text);
+      var blob_src = await this.get_tts(text.replace("Answer: ", ""));
       if (text in this.dict || (this.now_generating && this.now_generating.log.includes(this.dict[text])) || this.play_q.includes(this.dict[text])) return;
       this.dict[text] = blob_src;
       this.play_q.push(blob_src);
@@ -273,7 +274,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
   async push_gen_target(target)
   {
     var innerText = target.innerText;    
-    var sentences = innerText.split(/[.!?:;]\s|\n/).map(x=>x.trim());
+    var sentences = innerText.split(/[.!?]\s|\n/).map(x=>x.trim());
 
     if (sentences.length > 1)
       await this.push(sentences[0]);
@@ -282,7 +283,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
       await this.push(sentences[i]);
 
     if (this.end_well(innerText))
-      await this.push(sentences[sentences.length-1].replace(/[.!?:;]|\n/, ""));
+      await this.push(sentences[sentences.length-1].replace(/[.!?]|\n/, ""));
 
     if (this.audio.paused && this.play_q.length > 0)
       this.play();
@@ -294,7 +295,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
       this.now_generating = null;
     else if (this.now_generating && target === this.now_generating.target)
     {
-      if (ls !== sentences[sentences.length-1]) 
+      if (ls !== sentences[sentences.length-1] && sentences[sentences.length-1] !== "") 
         this.now_generating.last_sentence = [sentences[sentences.length-1], now_time];
       setTimeout(async ()=>{await this.push_gen_target(target);}, 500);
     }
@@ -317,38 +318,90 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
 }
 
 
-class TheTextarea {
+class TextareaMacro {
   constructor()
   {
-    fetch(chrome.runtime.getURL('/saved_text.html'))
-      .then(r => r.text())
-      .then(html => { 
+    chrome.storage.sync.get(null, (items) => { 
+      this.saved_text = (items.saved_text) ? JSON.parse(items.saved_text) : {};
+      this.selected_text = new Set();
+      if (items.selected_text)
+        for (var key of JSON.parse(items.selected_text))
+          this.selected_text.add(key);
 
-        this.text = html;
-        this.fill_textarea();
-
-      });
+      this.render();
+    });
 
     document.body.addEventListener("click", (e)=>{
-      if (e.target.innerText === "New chat")
-        setTimeout(()=>{ this.fill_textarea(); }, 500); 
+        setTimeout(()=>{ this.render(); }, 500); 
     });
   }
 
-  fill_textarea()
+  chrome_save()
+  {
+    var set_dict = {}
+    set_dict["selected_text"] = JSON.stringify(Array.from(this.selected_text));
+    chrome.storage.sync.set(set_dict);
+  }
+
+  deselect(key)
+  {
+    this.selected_text.delete(key);
+    this.chrome_save();
+  }
+
+  render()
   {
     var target = document.querySelector("main").querySelector("form").querySelector("textarea");
-
-    for (var h1 of document.getElementsByTagName("h1"))
-      if (h1.innerText === "ChatGPT")
+    if (target.parentNode.querySelector("select")) 
+      return;
+    var macro_box_obj = document.createElement("div");
+    var select_list = document.createElement("select");
+    select_list.classList.add("macro_select");
+    for (var key of Object.keys(this.saved_text))
+    {
+      var opt = document.createElement("option");
+      opt.text = (key === "-1")? "Select" : key;
+      opt.value = key;
+      select_list.appendChild(opt);
+    }
+    select_list.addEventListener("change", (e)=>{
+      if (this.selected_text.has(select_list.value) === false && select_list.value !== "-1")
       {
-        target.focus();
-        target.value = this.text;
-        target.style.height = `${24 * (this.text.split("\n").length + 1)}px`;
+        var button_obj = document.createElement("button");
+        button_obj.classList.add("macro_button");
+        button_obj.innerText = select_list.value;
+        this.selected_text.add(select_list.value);
+        this.chrome_save();
+        macro_box_obj.appendChild(button_obj);
+        select_list.selectedIndex = 0;
       }
+    });
+    macro_box_obj.appendChild(select_list);
+    macro_box_obj.addEventListener("click", (e)=>{ if (e.target.nodeName === "BUTTON"){macro_box_obj.removeChild(e.target); this.deselect(e.target.innerText);}});
+
+    target.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter" && e.shiftKey === false)
+        for (var key of this.selected_text)
+          target.value += ` (${this.saved_text[key]})`;
+    });
+    document.querySelector("main form textarea").nextSibling.addEventListener("click", ()=>{
+        for (var key of this.selected_text)
+          target.value += ` (${this.saved_text[key]})`;
+    });
+
+    for (var key of this.selected_text)
+    {
+      var item = document.createElement("button");
+      item.classList.add("macro_button");
+      item.innerText = key;
+      macro_box_obj.appendChild(item);
+    }
+
+    target.parentNode.insertBefore(macro_box_obj, target);
   }
 }
 
+var textarea_macro = new TextareaMacro();
 var tts_player = new TTSPlayer();
 var dom_observer = new DOMObserver(tts_player);
 var timer = false;
@@ -365,8 +418,6 @@ document.body.addEventListener("mouseup", async (e)=>{
       clearTimeout(timer);
       tts_player.close();
       timer = false;
-      tts_player.now_generating = null;
-      tts_player.okay_to_play = false;
     }
     else if (tts_player.audio.paused && selection.isCollapsed && tts_player.selected_str === "") //메인 클릭. 타이머 세팅 안돼있음. 재생중 아님. 블록 설정 텍스트 없음.
     {
