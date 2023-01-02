@@ -46,8 +46,8 @@ main item {
     width: 100px;
  }
 
-#saved_text button {
-    width: 50px;
+#saved_text item div:first-child div:nth-child(2) button {
+    width: 34px;
 }
 
 #saved_text select {
@@ -69,4 +69,12 @@ main item {
 
 .hide{
     visibility: hidden;
+}
+
+
+
+.macro_button {
+    border: 1px solid black;
+    background: lightgray;
+    font-size: 9pt;
 }
