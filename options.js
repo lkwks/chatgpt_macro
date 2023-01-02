@@ -119,6 +119,7 @@ async function restoreOptions() {
                 if (items.saved_text)
                     for (const [key, val] of Object.entries(JSON.parse(items.saved_text)))
                         saved_text[key] = val;
+                console.log(JSON.stringify(items));
                 resolve([saved_text, selected_text]);
             });
         });   
@@ -161,6 +162,20 @@ async function restoreOptions() {
 
     document.querySelector("#saved_text button.save_text_name").addEventListener("click", ()=>{save_text_name_func(add_text_name_mode);});
     document.querySelector("#saved_text div.add_text_name input").addEventListener("keydown", (e)=>{if (e.key === "Enter")save_text_name_func(add_text_name_mode);});
+
+
+    document.querySelector("#restore_backup button").addEventListener("click", ()=>
+    {
+        try {
+            if (document.querySelector("#restore_backup textarea").value.length > 100)
+                chrome.storage.sync.set(JSON.parse(document.querySelector("#restore_backup textarea").value), ()=>{
+                    window.location.reload();
+                });
+        }
+        catch(e){
+            console.log(e);
+        }
+    });
 }
 
 
