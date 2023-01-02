@@ -83,3 +83,14 @@ main item {
 #restore_backup textarea{
     width: 100%;
 }
+
+
+
+#restore_backup item {
+    flex-direction: column;
+}
+
+#restore_backup item div {
+    width: 100%;
+    justify-content: right;
+}
