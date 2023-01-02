@@ -21,10 +21,34 @@ domobserver 운영 전략
 (=main 오브젝트 내 텍스트 길이가 증가했는지를 확인하고, 증가했다면 그에 대한 제너레이션 매니저를 실행)를 실행시킨다. 
 
 */
-    setInterval(async ()=>{await this.new_answer_observer();}, 500);
+    this.textarea_macro = new TextareaMacro();
+    setInterval(async ()=>{
+      await this.new_answer_observer();
+      if (this.textarea_macro.storage_load)
+      {
+        this.textarea_macro.render();
+        if (document.querySelector("main h1") && document.querySelector("main select").parentNode.getElementsByTagName("button").length === 0)
+          this.textarea_macro.initialize();
+      }
+    }, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
     this.href = "";
+
+    document.body.addEventListener("click", (e)=>{
+      var node = e.target;
+      while (node && node.nodeName !== "NAV")
+        node = node.parentNode;
+      
+      if (node && node.nodeName === "NAV" && document.querySelector("main form select"))
+      {
+        var macro_box_obj = document.querySelector("main form select").parentNode;
+        macro_box_obj.querySelectorAll("button").forEach((elem)=>macro_box_obj.removeChild(elem));
+        this.textarea_macro.selected_text = new Set();  
+      }
+      if (e.target.innerText === "New chat")
+        this.textarea_macro.initialize();
+    });
   }
 
   get_last_node()
@@ -55,11 +79,16 @@ domobserver 운영 전략
     }
     if (document.querySelector("main h1") || !document.querySelector("main")) return;
     var now_main_length = document.querySelector("main div").innerText.length;
+
+    if (this.tts_player.now_playing_target)
+    {
+      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
+      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
+    }
+
     if (this.tts_player.audio.paused === false) // 현재 재생 상태면 push_gen 안돌린다.
     {
       this.last_main_length = now_main_length;
-      var rect = this.tts_player.now_playing_target.getBoundingClientRect();
-      this.tts_player.open(rect.left, rect.top, -24, 2, "object");
       return;
     }
     
@@ -134,27 +163,12 @@ class TTSPlayer {
   
   ask_chatgpt(mode)
   {
-    var target = document.querySelector("main").querySelector("form").querySelector("textarea");
-    var text = this.selected_str;
 
-    if (mode === "diff") 
-    {
-      if (target.value.includes("What is the difference between ") === false)
-        text = `What is the difference between '${text}' and `;
-      else
-      {
-        this.scroll_to_bottom();
-        text = `${target.value}'${text}'?`;
-      } 
-    }
-    else
-    {
-      this.scroll_to_bottom();
-      if (mode === "meaning")
-        text = `What is the meaning of '${text}'?`;
-      if (mode === "inap")
-        text = `Is it inappropriate to say '${text}'?`;
-    }
+    var target = document.querySelector("main").querySelector("form").querySelector("textarea");
+    var text = `'${this.selected_str}'`;
+
+    if (mode === "add") 
+      text = `${target.value} ${text}`;
 
     setTimeout(()=>{ target.value = text; }, 200);
     this.close();
@@ -194,6 +208,7 @@ class TTSPlayer {
     this.play_q = [];
     this.obj.classList.add("t_close");
     this.now_generating = null;
+    this.now_playing_target = null;
   }
 
   pause()
@@ -321,87 +336,112 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
 class TextareaMacro {
   constructor()
   {
+    this.selected_text = new Set();
+    this.macro_box_obj = document.createElement("div");
+    this.storage_load = false;
+
     chrome.storage.sync.get(null, (items) => { 
       this.saved_text = (items.saved_text) ? JSON.parse(items.saved_text) : {};
-      this.selected_text = new Set();
-      if (items.selected_text)
-        for (var key of JSON.parse(items.selected_text))
-          this.selected_text.add(key);
+      this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
 
-      this.render();
+      var select_list = document.createElement("select");
+      select_list.classList.add("macro_select");
+      for (var key of Object.keys(this.saved_text))
+      {
+        var opt = document.createElement("option");
+        opt.text = (key === "-1")? "Select" : key;
+        opt.value = key;
+        select_list.appendChild(opt);
+      }
+      select_list.addEventListener("change", ()=>{
+        if (this.selected_text.has(select_list.value) === false && select_list.value !== "-1")
+        {
+          this.selected_text.add(select_list.value);
+          this.macro_box_obj.appendChild(this.button_obj(select_list.value));
+          select_list.selectedIndex = 0;
+        }
+      });
+
+      this.macro_box_obj.appendChild(select_list);
+      this.macro_box_obj.addEventListener("click", (e)=>{ 
+        if (e.target.nodeName === "BUTTON")
+        {
+          this.macro_box_obj.removeChild(e.target); 
+          this.selected_text.delete(e.target.innerText);
+          if (document.getElementById(`button_${e.target.innerText}`).classList.contains("hide") === false)
+            document.getElementById(`button_${e.target.innerText}`).classList.add("hide");
+        }
+      });
+      this.macro_box_obj.addEventListener("mouseover", (e)=>{
+        var desc_obj = document.getElementById(`button_${e.target.innerText}`);
+        if (e.target.nodeName === "BUTTON")
+        {
+          desc_obj.classList.remove("hide");
+          var rect1 = e.target.getBoundingClientRect();
+          var rect2 = desc_obj.getBoundingClientRect();
+          desc_obj.style.top = rect1.top - rect2.height + "px";
+          desc_obj.style.left = rect1.left - rect2.width/2 + rect1.width/2 + "px";
+        }
+      });
+  
+      this.storage_load = true;
     });
 
-    document.body.addEventListener("click", (e)=>{
-        setTimeout(()=>{ this.render(); }, 500); 
+    document.body.addEventListener("click", ()=>{
+          setTimeout(()=>{ this.render(); }, 500);
     });
   }
 
-  chrome_save()
+  initialize()
   {
-    var set_dict = {}
-    set_dict["selected_text"] = JSON.stringify(Array.from(this.selected_text));
-    chrome.storage.sync.set(set_dict);
+    chrome.storage.sync.get(null, (items) => { 
+      this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
+      for (var key of this.selected_text)
+        document.querySelector("main form select").parentNode.appendChild(this.button_obj(key));
+    });
   }
 
-  deselect(key)
+  button_obj(val)
   {
-    this.selected_text.delete(key);
-    this.chrome_save();
+    var button_obj = document.createElement("button");
+    button_obj.classList.add("macro_button");
+    button_obj.innerText = val;
+
+    var desc_obj = document.getElementById(`button_${val}`)
+    if (!desc_obj)
+    { 
+      desc_obj = document.createElement("div");
+      desc_obj.setAttribute("id", `button_${val}`);
+      desc_obj.classList.add("macro_desc", "hide");
+      desc_obj.innerText = this.saved_text[val];
+      document.body.appendChild(desc_obj);
+    }
+    button_obj.addEventListener("mouseout", ()=>{ desc_obj.classList.add("hide"); });
+
+    return button_obj;
+  }
+
+  submit_action(target)
+  {
+    for (var key of this.selected_text)
+      target.value += ` (${this.saved_text[key]})`;
+    document.querySelector("main form select").parentNode.querySelectorAll("button").forEach((elem)=>this.macro_box_obj.removeChild(elem));
+    this.selected_text = new Set();
   }
 
   render()
   {
+    if (!document.querySelector("main")) return;
     var target = document.querySelector("main").querySelector("form").querySelector("textarea");
-    if (target.parentNode.querySelector("select")) 
+    if (target === null || target.parentNode.querySelector("select")) 
       return;
-    var macro_box_obj = document.createElement("div");
-    var select_list = document.createElement("select");
-    select_list.classList.add("macro_select");
-    for (var key of Object.keys(this.saved_text))
-    {
-      var opt = document.createElement("option");
-      opt.text = (key === "-1")? "Select" : key;
-      opt.value = key;
-      select_list.appendChild(opt);
-    }
-    select_list.addEventListener("change", (e)=>{
-      if (this.selected_text.has(select_list.value) === false && select_list.value !== "-1")
-      {
-        var button_obj = document.createElement("button");
-        button_obj.classList.add("macro_button");
-        button_obj.innerText = select_list.value;
-        this.selected_text.add(select_list.value);
-        this.chrome_save();
-        macro_box_obj.appendChild(button_obj);
-        select_list.selectedIndex = 0;
-      }
-    });
-    macro_box_obj.appendChild(select_list);
-    macro_box_obj.addEventListener("click", (e)=>{ if (e.target.nodeName === "BUTTON"){macro_box_obj.removeChild(e.target); this.deselect(e.target.innerText);}});
 
-    target.addEventListener("keydown", (e)=>{
-      if (e.key === "Enter" && e.shiftKey === false)
-        for (var key of this.selected_text)
-          target.value += ` (${this.saved_text[key]})`;
-    });
-    document.querySelector("main form textarea").nextSibling.addEventListener("click", ()=>{
-        for (var key of this.selected_text)
-          target.value += ` (${this.saved_text[key]})`;
-    });
-
-    for (var key of this.selected_text)
-    {
-      var item = document.createElement("button");
-      item.classList.add("macro_button");
-      item.innerText = key;
-      macro_box_obj.appendChild(item);
-    }
-
-    target.parentNode.insertBefore(macro_box_obj, target);
+    target.parentNode.insertBefore(this.macro_box_obj, target);  
+    target.addEventListener("keydown", (e)=>{ if (e.key === "Enter" && e.shiftKey === false) this.submit_action(target); });
+    target.nextSibling.addEventListener("click", ()=>{ this.submit_action(target) });
   }
 }
 
-var textarea_macro = new TextareaMacro();
 var tts_player = new TTSPlayer();
 var dom_observer = new DOMObserver(tts_player);
 var timer = false;
