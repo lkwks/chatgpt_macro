@@ -24,12 +24,6 @@ domobserver 운영 전략
     this.textarea_macro = new TextareaMacro();
     setInterval(async ()=>{
       await this.new_answer_observer();
-      if (this.textarea_macro.storage_load)
-      {
-        this.textarea_macro.render();
-        if (document.querySelector("main h1") && document.querySelector("main select").parentNode.getElementsByTagName("button").length === 0)
-          this.textarea_macro.initialize();
-      }
     }, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
@@ -42,13 +36,36 @@ domobserver 운영 전략
       
       if (node && node.nodeName === "NAV" && document.querySelector("main form select"))
       {
+        setTimeout(()=>{
         var macro_box_obj = document.querySelector("main form select").parentNode;
-        macro_box_obj.querySelectorAll("button").forEach((elem)=>macro_box_obj.removeChild(elem));
+        macro_box_obj.querySelectorAll("button").forEach((elem)=>
+        {
+          macro_box_obj.removeChild(elem);
+        });
         this.textarea_macro.selected_text = new Set();  
+        this.textarea_macro.render();
+        if (e.target.innerText === "New chat")
+          this.textarea_macro.initialize();
+        
+      }, 500);
       }
       if (e.target.innerText === "New chat")
+      {
         this.textarea_macro.initialize();
+      }
     });
+
+    this.detect_h1();
+  }
+
+  detect_h1()
+  {
+    if (this.textarea_macro.storage_load && document.querySelector("main h1"))
+    {
+      this.textarea_macro.render();
+      this.textarea_macro.initialize();
+    }
+    else setTimeout(()=>this.detect_h1(), 500);
   }
 
   get_last_node()
@@ -366,7 +383,8 @@ class TextareaMacro {
       this.macro_box_obj.addEventListener("click", (e)=>{ 
         if (e.target.nodeName === "BUTTON")
         {
-          this.macro_box_obj.removeChild(e.target); 
+          this.macro_box_obj.removeChild(e.target);
+          document.querySelector("main form textarea").value = document.querySelector("main form textarea").value.replace(`(${this.saved_text[e.target.innerText]}) `, "") 
           this.selected_text.delete(e.target.innerText);
           if (document.getElementById(`button_${e.target.innerText}`).classList.contains("hide") === false)
             document.getElementById(`button_${e.target.innerText}`).classList.add("hide");
@@ -395,9 +413,19 @@ class TextareaMacro {
   initialize()
   {
     chrome.storage.sync.get(null, (items) => { 
+      var macro_box_obj = document.querySelector("main form select").parentNode;
+      var target = document.querySelector("main form textarea"); 
+      macro_box_obj.querySelectorAll("button").forEach((elem)=>
+      {
+        macro_box_obj.removeChild(elem);
+      });
       this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
       for (var key of this.selected_text)
-        document.querySelector("main form select").parentNode.appendChild(this.button_obj(key));
+      {
+        macro_box_obj.appendChild(this.button_obj(key));
+        target.value += `(${this.saved_text[key]}) `;
+      }
+      target.style.height = `${24 * (target.value.split("\n").length + 1)}px`;
     });
   }
 
@@ -505,7 +533,7 @@ document.body.addEventListener("mouseup", async (e)=>{
   if(selection.isCollapsed === false && tts_player.audio.paused) //현재 재생중 아니고 텍스트 블록 선택 있으면 그 부분에 대한 재생창 띄운다. 사실 이것만 있어도 되긴 한데..
   {
     tts_player.close();
-    tts_player.now_playing_target = selection.focusNode;
+    tts_player.now_playing_target = selection.focusNode.parentNode;
     tts_player.open(e.clientX, e.clientY, 20, 0, "selected");
     tts_player.selected_str = selection.toString();
     setTimeout(()=>{if(window.getSelection().isCollapsed)tts_player.close();}, 20)
