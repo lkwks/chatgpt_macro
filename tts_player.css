@@ -2,7 +2,7 @@
    position: fixed; 
    background: white;
    border: 1px solid black;
-   z-index: 2147483647;
+   z-index: 2137483647;
    font-family: math;
    height: 22px;
    display: flex;
@@ -42,4 +42,18 @@
     width: 100px;
     height: 25px;
     padding: 2px;
+}
+
+.macro_desc {
+    position: fixed; 
+    background: white;
+    border: 1px solid black;
+    z-index: 2137483647;
+    font-size: 9pt;
+    padding: 5px;
+    max-width: 300px;
+}
+
+.macro_desc.hide{
+    display: none;
 }
