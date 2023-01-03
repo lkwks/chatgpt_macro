@@ -24,6 +24,8 @@ domobserver 운영 전략
     this.textarea_macro = new TextareaMacro();
     setInterval(async ()=>{
       await this.new_answer_observer();
+      if(this.textarea_macro.storage_load)
+        this.textarea_macro.render();
     }, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
@@ -42,6 +44,7 @@ domobserver 운영 전략
         {
           macro_box_obj.removeChild(elem);
         });
+        console.log(1);
         this.textarea_macro.selected_text = new Set();  
         this.textarea_macro.render();
         if (e.target.innerText === "New chat")
@@ -62,7 +65,6 @@ domobserver 운영 전략
   {
     if (this.textarea_macro.storage_load && document.querySelector("main h1"))
     {
-      this.textarea_macro.render();
       this.textarea_macro.initialize();
     }
     else setTimeout(()=>this.detect_h1(), 500);
@@ -85,6 +87,7 @@ domobserver 운영 전략
 
   async new_answer_observer()
   {
+    if (document.querySelector("main form input") && document.querySelector("main form input").checked === false) return;
     if (this.last_main_length === -1)
     {
       if(document.querySelector("main"))
@@ -97,7 +100,7 @@ domobserver 운영 전략
     if (document.querySelector("main h1") || !document.querySelector("main")) return;
     var now_main_length = document.querySelector("main div").innerText.length;
 
-    if (this.tts_player.now_playing_target)
+    if (this.tts_player.now_playing_target && this.tts_player.selected_str === "")
     {
       var rect = this.tts_player.now_playing_target.getBoundingClientRect();
       this.tts_player.open(rect.left, rect.top, -24, 2, "object");
@@ -176,6 +179,7 @@ class TTSPlayer {
     this.play_q = [];
     this.langname = this.get_langname();
     this.now_playing_target = null;
+    this.question_start = false;
   }
   
   ask_chatgpt(mode)
@@ -253,7 +257,11 @@ class TTSPlayer {
   {
     if (text === "" || text === undefined || this.is_it_new(text) === false) return;
 
-    if (text.includes("Question:")) return;
+    if (text.includes("Answer:"))
+      this.question_start = false;
+    if (text.includes("Question:"))
+      this.question_start = true;
+    if (this.question_start) return;
 
     if (text in this.dict)
       this.play_q.push(this.dict[text]);
@@ -317,6 +325,12 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
     if (this.end_well(innerText))
       await this.push(sentences[sentences.length-1].replace(/[.!?]|\n/, ""));
 
+    if (document.querySelector("main form input").checked === false) 
+    {
+      this.close();
+      return;
+    }
+
     if (this.audio.paused && this.play_q.length > 0)
       this.play();
 
@@ -356,16 +370,39 @@ class TextareaMacro {
     this.selected_text = new Set();
     this.macro_box_obj = document.createElement("div");
     this.storage_load = false;
+    this.text_used_num = {};
 
     chrome.storage.sync.get(null, (items) => { 
       this.saved_text = (items.saved_text) ? JSON.parse(items.saved_text) : {};
       this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
+      this.text_used_num = (items.text_used_num) ? JSON.parse(items.text_used_num) : {};
+
+      var checkbox_obj = document.createElement("input");
+      checkbox_obj.type = "checkbox";
+      checkbox_obj.checked = (items.tts_generating && items.tts_generating === "true");
+      checkbox_obj.addEventListener("change",  (e)=>{
+        if (e.target.checked)
+          chrome.storage.sync.set({"tts_generating": "true"});
+        else
+          chrome.storage.sync.set({"tts_generating": "false"});
+      });
+      this.macro_box_obj.appendChild(checkbox_obj);
+
+      var text_used_num_arr = [];
+      for (var key of Object.keys(this.saved_text))
+        text_used_num_arr.push({[key]:(key in this.text_used_num)?this.text_used_num[key]:0});
+      text_used_num_arr.sort((a, b)=>{
+        const aval = Object.values(a)[0], bval = Object.values(b)[0];
+        if (aval < bval || Object.keys(b)[0] === "-1") return 1;
+        if (aval > bval || Object.keys(a)[0] === "-1") return -1;
+        return 0;
+      });
 
       var select_list = document.createElement("select");
       select_list.classList.add("macro_select");
-      for (var key of Object.keys(this.saved_text))
+      for (var elem of text_used_num_arr)
       {
-        var opt = document.createElement("option");
+        var opt = document.createElement("option"), key = Object.keys(elem)[0];
         opt.text = (key === "-1")? "Select" : key;
         opt.value = key;
         select_list.appendChild(opt);
@@ -375,6 +412,11 @@ class TextareaMacro {
         {
           this.selected_text.add(select_list.value);
           this.macro_box_obj.appendChild(this.button_obj(select_list.value));
+          if (select_list.value in this.text_used_num)
+            this.text_used_num[select_list.value]++;
+          else
+            this.text_used_num[select_list.value] = 1;
+          chrome.storage.sync.set({"text_used_num": JSON.stringify(this.text_used_num)});
           select_list.selectedIndex = 0;
         }
       });
@@ -423,7 +465,8 @@ class TextareaMacro {
       for (var key of this.selected_text)
       {
         macro_box_obj.appendChild(this.button_obj(key));
-        target.value += `(${this.saved_text[key]}) `;
+        if (target.value.includes(this.saved_text[key]) === false)
+          target.value += `(${this.saved_text[key]}) `;
       }
       target.style.height = `${24 * (target.value.split("\n").length + 1)}px`;
     });
@@ -442,6 +485,7 @@ class TextareaMacro {
       desc_obj.setAttribute("id", `button_${val}`);
       desc_obj.classList.add("macro_desc", "hide");
       desc_obj.innerText = this.saved_text[val];
+      desc_obj.addEventListener("mouseout", ()=>{ desc_obj.classList.add("hide"); });
       document.body.appendChild(desc_obj);
     }
     button_obj.addEventListener("mouseout", ()=>{ desc_obj.classList.add("hide"); });
@@ -452,7 +496,8 @@ class TextareaMacro {
   submit_action(target)
   {
     for (var key of this.selected_text)
-      target.value += ` (${this.saved_text[key]})`;
+      if (target.value.includes(this.saved_text[key]) === false)
+        target.value += ` (${this.saved_text[key]})`;
     document.querySelector("main form select").parentNode.querySelectorAll("button").forEach((elem)=>this.macro_box_obj.removeChild(elem));
     this.selected_text = new Set();
   }
