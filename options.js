@@ -1,20 +1,19 @@
 
 function save(key, value) {
-    set_dict = {}
-    set_dict[key] = value;
-    chrome.storage.sync.set(set_dict);
+    chrome.storage.sync.set({[key]: value});
   }
 
 function render_saved_text(saved_text_dict, selected_text)
 {
     var select_obj = document.querySelector("#saved_text select");
     var start_obj = document.querySelector("#start_with select");
-    var box_obj = document.querySelector("#start_with item div:nth-child(2)")
+    var box_obj = document.querySelector("#start_with item div:nth-child(2)");
     if (saved_text_dict)
     {
         for (const key of Object.keys(saved_text_dict))
         {
             if (key === "-1") continue;
+            if (document.querySelector("#saved_text textarea").value === "") document.querySelector("#saved_text textarea").value = saved_text_dict[key];
             var opt = document.createElement("option");
             opt.text = key;
             opt.value = key;
@@ -36,15 +35,11 @@ function render_saved_text(saved_text_dict, selected_text)
         }
     }
 
-    select_obj.addEventListener("click", (e)=>{
-        if (e.target.nodeName === "OPTION")
-        {
-            select_obj.value = e.target.value;
-            document.querySelector("#saved_text textarea").value = saved_text_dict[e.target.value];
-        }
+    select_obj.addEventListener("change", ()=>{
+        document.querySelector("#saved_text textarea").value = saved_text_dict[select_obj.value];
     });
-    if(select_obj.querySelector("option"))
-        select_obj.querySelector("option").click();
+    if(select_obj.querySelector("option") && window.location.href.includes("?opt="))
+        select_obj.querySelector(`option[value='${decodeURI(window.location.href).split("?opt=")[1]}']`).click();
 
     start_obj.addEventListener("change", ()=>{
         if (selected_text.has(start_obj.value) === false && start_obj.value !== "-1")
@@ -101,8 +96,7 @@ function save_text_name_func(mode)
         }
         saved_text_obj.querySelector(`select option[value='${new_text_name}']`).click();
         saved_text_obj.querySelector("div.add_text_name input").value = '';
-        saved_text_obj.querySelector("button.new_text").click();
-        window.location.reload();
+        window.location.href = encodeURI(`${window.location.href}?opt=${new_text_name}`);
     }    
 }
 
@@ -116,10 +110,13 @@ async function restoreOptions() {
                 if (items.selected_text)
                     selected_text = new Set(JSON.parse(items.selected_text));
 
+                if (items.tts_generating && items.tts_generating === "true")
+                    document.querySelector("#tts_generating input").checked = true;
+
                 if (items.saved_text)
                     for (const [key, val] of Object.entries(JSON.parse(items.saved_text)))
                         saved_text[key] = val;
-                console.log(JSON.stringify(items));
+                document.querySelector("#restore_backup textarea").value = JSON.stringify(items);
                 resolve([saved_text, selected_text]);
             });
         });   
@@ -156,7 +153,7 @@ async function restoreOptions() {
         {
             delete saved_text[select_obj.value];
             save("saved_text", JSON.stringify(saved_text));
-            window.location.reload();            
+            window.location.href = window.location.href.split("?")[0];
         }
     });
 
@@ -169,12 +166,19 @@ async function restoreOptions() {
         try {
             if (document.querySelector("#restore_backup textarea").value.length > 100)
                 chrome.storage.sync.set(JSON.parse(document.querySelector("#restore_backup textarea").value), ()=>{
-                    window.location.reload();
+                    window.location.href = window.location.href.split("?")[0];
                 });
         }
         catch(e){
             console.log(e);
         }
+    });
+
+    document.querySelector("#tts_generating input").addEventListener("change", (e)=>{
+        if (e.target.checked)
+           save("tts_generating", "true");
+        else
+            save("tts_generating", "false");
     });
 }
 
