@@ -79,12 +79,26 @@ main item {
     font-size: 9pt;
 }
 
+#tts_generating item {
+    justify-content: left;;
+}
 
-#restore_backup textarea{
+#start_with item div:first-child{
+    width: 111px;
+}
+
+#start_with item div select {
+    width: 100%;
+}
+
+#start_with item div:nth-child(2) {
     width: 100%;
 }
 
 
+#restore_backup textarea{
+    width: 100%;
+}
 
 #restore_backup item {
     flex-direction: column;
