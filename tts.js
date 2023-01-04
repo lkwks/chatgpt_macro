@@ -380,12 +380,6 @@ class TextareaMacro {
       var checkbox_obj = document.createElement("input");
       checkbox_obj.type = "checkbox";
       checkbox_obj.checked = (items.tts_generating && items.tts_generating === "true");
-      checkbox_obj.addEventListener("change",  (e)=>{
-        if (e.target.checked)
-          chrome.storage.sync.set({"tts_generating": "true"});
-        else
-          chrome.storage.sync.set({"tts_generating": "false"});
-      });
       this.macro_box_obj.appendChild(checkbox_obj);
 
       var text_used_num_arr = [];
