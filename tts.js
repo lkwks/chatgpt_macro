@@ -26,33 +26,37 @@ domobserver 운영 전략
       await this.new_answer_observer();
       if(this.textarea_macro.storage_load)
         this.textarea_macro.render();
+      if(window.getSelection().isCollapsed)this.tts_player.close();
     }, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
     this.href = "";
 
     document.body.addEventListener("click", (e)=>{
-      var node = e.target;
+      var node = e.target, a_parent = e.target;
       while (node && node.nodeName !== "NAV")
         node = node.parentNode;
+      while (a_parent && a_parent.nodeName !== "A")
+        a_parent = a_parent.parentNode;
       
       if (node && node.nodeName === "NAV" && document.querySelector("main form select"))
       {
         setTimeout(()=>{
+          if (document.querySelector("main form select"))
+          {
         var macro_box_obj = document.querySelector("main form select").parentNode;
         macro_box_obj.querySelectorAll("button").forEach((elem)=>
         {
           macro_box_obj.removeChild(elem);
         });
-        console.log(1);
-        this.textarea_macro.selected_text = new Set();  
-        this.textarea_macro.render();
-        if (e.target.innerText === "New chat")
-          this.textarea_macro.initialize();
-        
-      }, 500);
       }
-      if (e.target.innerText === "New chat")
+      this.textarea_macro.selected_text = new Set();  
+      this.textarea_macro.render();
+      if (a_parent && a_parent === document.querySelector("nav a"))
+        this.textarea_macro.initialize();
+    }, 500);
+      }
+      if (a_parent && a_parent === document.querySelector("nav a"))
       {
         this.textarea_macro.initialize();
       }
@@ -325,7 +329,7 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
     if (this.end_well(innerText))
       await this.push(sentences[sentences.length-1].replace(/[.!?]|\n/, ""));
 
-    if (document.querySelector("main form input").checked === false) 
+    if (document.querySelector("main form input") && document.querySelector("main form input").checked === false) 
     {
       this.close();
       return;
@@ -487,6 +491,20 @@ class TextareaMacro {
     return button_obj;
   }
 
+
+/*
+
+버튼 삭제
+1. 버튼 눌렀을 때
+2. submit_action() 실행 후
+3. New chat 페이지 나타났을 때
+4. 새로운 페이지로 넘어갔을 때
+
+New chat 페이지 나타났을 때 selected_text가 storage에서 로드되는데.
+
+
+*/
+
   submit_action(target)
   {
     for (var key of this.selected_text)
@@ -575,7 +593,6 @@ document.body.addEventListener("mouseup", async (e)=>{
     tts_player.now_playing_target = selection.focusNode.parentNode;
     tts_player.open(e.clientX, e.clientY, 20, 0, "selected");
     tts_player.selected_str = selection.toString();
-    setTimeout(()=>{if(window.getSelection().isCollapsed)tts_player.close();}, 20)
   }
 
 });
