@@ -44,21 +44,22 @@ domobserver 운영 전략
         setTimeout(()=>{
           if (document.querySelector("main form select"))
           {
-        var macro_box_obj = document.querySelector("main form select").parentNode;
-        macro_box_obj.querySelectorAll("button").forEach((elem)=>
-        {
-          macro_box_obj.removeChild(elem);
-        });
-      }
-      this.textarea_macro.selected_text = new Set();  
-      this.textarea_macro.render();
-      if (a_parent && a_parent === document.querySelector("nav a"))
-        this.textarea_macro.initialize();
-    }, 500);
+            var macro_box_obj = document.querySelector("main form select").parentNode;
+            macro_box_obj.querySelectorAll("button").forEach((elem)=> { macro_box_obj.removeChild(elem); });
+          }
+          this.textarea_macro.selected_text = new Set();  
+          this.textarea_macro.render();
+          if (a_parent && a_parent === document.querySelector("nav a"))
+          {
+            this.textarea_macro.initialize();
+            console.log(this.textarea_macro.selected_text);
+          }
+        }, 500);
       }
       if (a_parent && a_parent === document.querySelector("nav a"))
       {
         this.textarea_macro.initialize();
+        console.log(this.textarea_macro.selected_text);
       }
     });
 
@@ -70,6 +71,7 @@ domobserver 운영 전략
     if (this.textarea_macro.storage_load && document.querySelector("main h1"))
     {
       this.textarea_macro.initialize();
+      console.log(this.textarea_macro.selected_text);
     }
     else setTimeout(()=>this.detect_h1(), 500);
   }
@@ -221,7 +223,13 @@ class TTSPlayer {
     {
       if (this.now_generating !== null) this.now_generating.log.push(this.play_q[0]);
       this.audio.src = this.play_q.shift();
-      this.audio.play();
+      try{
+        this.audio.play();
+      }
+      catch(e)
+      {
+        console.log(e);
+      }
     }
     else if (this.now_generating === null)
       this.close();
@@ -378,7 +386,6 @@ class TextareaMacro {
 
     chrome.storage.sync.get(null, (items) => { 
       this.saved_text = (items.saved_text) ? JSON.parse(items.saved_text) : {};
-      this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
       this.text_used_num = (items.text_used_num) ? JSON.parse(items.text_used_num) : {};
 
       var checkbox_obj = document.createElement("input");
@@ -572,7 +579,7 @@ document.body.addEventListener("mouseup", async (e)=>{
       tts_player.play();
 
       timer = setTimeout(async ()=> {
-        if (tts_player.okay_to_play)
+        if (tnode && tts_player.okay_to_play)
         {
           var rect = tnode.getBoundingClientRect();
           tts_player.open(rect.left, rect.top, -24, 2, "object");
