@@ -26,18 +26,15 @@ domobserver 운영 전략
       await this.new_answer_observer();
       if(this.textarea_macro.storage_load)
         this.textarea_macro.render();
-      if(window.getSelection().isCollapsed)this.tts_player.close();
     }, 500);
     this.last_main_length = -1;
     this.tts_player = tts_player;
     this.href = "";
 
     document.body.addEventListener("click", (e)=>{
-      var node = e.target, a_parent = e.target;
+      var node = e.target;
       while (node && node.nodeName !== "NAV")
         node = node.parentNode;
-      while (a_parent && a_parent.nodeName !== "A")
-        a_parent = a_parent.parentNode;
       
       if (node && node.nodeName === "NAV" && document.querySelector("main form select"))
       {
@@ -49,14 +46,20 @@ domobserver 운영 전략
           }
           this.textarea_macro.selected_text = new Set();  
           this.textarea_macro.render();
-          if (a_parent && a_parent === document.querySelector("nav a"))
+          var a_parent = e.target;
+          while (a_parent && a_parent.nodeName !== "A")
+            a_parent = a_parent.parentNode;
+          if (a_parent && a_parent.innerHTML === document.querySelector("nav a").innerHTML)
           {
             this.textarea_macro.initialize();
             console.log(this.textarea_macro.selected_text);
           }
         }, 500);
       }
-      if (a_parent && a_parent === document.querySelector("nav a"))
+      var a_parent = e.target;
+      while (a_parent && a_parent.nodeName !== "A")
+        a_parent = a_parent.parentNode;
+      if (a_parent && a_parent.innerHTML === document.querySelector("nav a").innerHTML)
       {
         this.textarea_macro.initialize();
         console.log(this.textarea_macro.selected_text);
@@ -222,6 +225,7 @@ class TTSPlayer {
     if (this.play_q.length > 0)
     {
       if (this.now_generating !== null) this.now_generating.log.push(this.play_q[0]);
+      this.audio.pause();
       this.audio.src = this.play_q.shift();
       try{
         this.audio.play();
@@ -350,11 +354,16 @@ okay to play를 true로 만들어야 할 때: 재생을 해야 할 때. 최대�
     var now_time = (new Date()).getTime();
     var [ls, lt] = this.now_generating.last_sentence;
     if (ls === sentences[sentences.length-1] && now_time - lt > 3000)
+    {
       this.now_generating = null;
+      this.close();
+    }
     else if (this.now_generating && target === this.now_generating.target)
     {
       if (ls !== sentences[sentences.length-1] && sentences[sentences.length-1] !== "") 
         this.now_generating.last_sentence = [sentences[sentences.length-1], now_time];
+      else
+        console.log(ls, sentences[sentences.length-1])
       setTimeout(async ()=>{await this.push_gen_target(target);}, 500);
     }
   }
@@ -466,6 +475,7 @@ class TextareaMacro {
       {
         macro_box_obj.removeChild(elem);
       });
+      console.log(items.selected_text);
       this.selected_text = (items.selected_text) ? new Set(JSON.parse(items.selected_text)) : new Set();
       for (var key of this.selected_text)
       {
@@ -600,6 +610,7 @@ document.body.addEventListener("mouseup", async (e)=>{
     tts_player.now_playing_target = selection.focusNode.parentNode;
     tts_player.open(e.clientX, e.clientY, 20, 0, "selected");
     tts_player.selected_str = selection.toString();
+    setTimeout(()=>{console.log(window.getSelection().toString());if(window.getSelection().toString() === "")this.tts_player.close();}, 500);
   }
 
 });
